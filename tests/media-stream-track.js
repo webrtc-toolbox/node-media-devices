@@ -1,7 +1,10 @@
-const { read } = require('fs');
-const { MediaStreamTrack, MediaStreamTrackProcessor } = require('../dist/index');
+const { read } = require("fs");
+const {
+  MediaStreamTrack,
+  MediaStreamTrackProcessor,
+} = require("../dist/index");
 
-const track = new MediaStreamTrack({ kind: 'video' });
+const track = new MediaStreamTrack({ kind: "video" });
 // const processor = new MediaStreamTrackProcessor({ track });
 track.startCapture();
 
@@ -23,7 +26,7 @@ track.startCapture();
 
 // processFrame();
 
-setTimeout(()=>{
-    track.stopCapture();
-    console.log('stopped');
-},3000);
+setTimeout(() => {
+  track.stopCapture();
+  console.log("stopped");
+}, 3000);

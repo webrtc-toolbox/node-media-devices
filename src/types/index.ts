@@ -1,7 +1,7 @@
 export interface Constraints {
-    deviceId: string
+  deviceId: string;
 }
 
 export interface VideoFrame {
-    data: Buffer
+  data: Buffer;
 }

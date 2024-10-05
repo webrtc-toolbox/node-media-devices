@@ -1,9 +1,9 @@
 import { MediaStreamTrack } from "./media-stream-track";
 import { VideoFrame } from "./types";
-import { ReadableStream } from 'node:stream/web'
+import { ReadableStream } from "node:stream/web";
 
 interface Options {
-  track: MediaStreamTrack
+  track: MediaStreamTrack;
 }
 
 export class MediaStreamTrackProcessor {
@@ -18,21 +18,18 @@ export class MediaStreamTrackProcessor {
   private createReadableStream(): ReadableStream {
     const readable = new ReadableStream({
       start: (controller) => {
-        this.track._frameEmitter.on('frame', (frame: VideoFrame) => {
+        this.track._frameEmitter.on("frame", (frame: VideoFrame) => {
           controller.enqueue(frame);
         });
 
-        this.track._frameEmitter.on('end', () => {
+        this.track._frameEmitter.on("end", () => {
           controller.close();
         });
 
         this.track.startCapture();
       },
-      cancel: () => {
-        
-      },
+      cancel: () => {},
     });
-
 
     return readable;
   }

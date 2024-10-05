@@ -1,40 +1,44 @@
 import { MediaStream } from "./media-stream";
-import { EventEmitter } from 'events';
-const mediaDeviceNative = require('bindings')('media-devices-native');
+import { EventEmitter } from "events";
+const mediaDeviceNative = require("bindings")("media-devices-native");
 
 export enum MediaRecorderState {
-    inactive,
-    recording,
-    paused
-};
+  inactive,
+  recording,
+  paused,
+}
 
 export class MediaRecorder extends EventEmitter {
-    private stream: MediaStream;
-    private state: MediaRecorderState = MediaRecorderState.inactive;
-    private nativeMediaRecorder;
+  private stream: MediaStream;
+  private state: MediaRecorderState = MediaRecorderState.inactive;
+  private nativeMediaRecorder;
 
-    public constructor(stream: MediaStream) {
-        super();
-        this.nativeMediaRecorder = new mediaDeviceNative.NativeMediaRecorder(this.onData);
-        this.stream = stream;
+  public constructor(stream: MediaStream) {
+    super();
+    this.nativeMediaRecorder = new mediaDeviceNative.NativeMediaRecorder(
+      this.onData,
+    );
+    this.stream = stream;
 
-        const result = this.nativeMediaRecorder.addInputDevice(stream.nativeMediaStream);
-        console.log('result: ', result);
+    const result = this.nativeMediaRecorder.addInputDevice(
+      stream.nativeMediaStream,
+    );
+    console.log("result: ", result);
+  }
+
+  public start() {
+    if (this.state === MediaRecorderState.recording) {
+      return;
     }
 
-    public start() {
-        if (this.state === MediaRecorderState.recording) {
-            return;
-        }
+    this.stream.on("data", (data: Buffer) => {
+      this.emit("dataavailable", data);
+    });
 
-        this.stream.on('data', (data: Buffer) => {
-            this.emit('dataavailable', data);
-        });
+    console.log(this.nativeMediaRecorder.requestCapture());
+  }
 
-        console.log(this.nativeMediaRecorder.requestCapture());
-    }
-
-    private onData = (buffer: any) => {
-        console.log(buffer);
-    }
+  private onData = (buffer: any) => {
+    console.log(buffer);
+  };
 }

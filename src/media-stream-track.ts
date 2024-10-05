@@ -1,14 +1,14 @@
-import { EventEmitter } from 'node:events'
-const { NativeMediaStreamTrack } = require('bindings')('media-devices-native');
-import { VideoFrame } from './types';
+import { EventEmitter } from "node:events";
+const { NativeMediaStreamTrack } = require("bindings")("media-devices-native");
+import { VideoFrame } from "./types";
 
 enum Kind {
   VIDEO = "video",
-  AUDIO = "audio"
+  AUDIO = "audio",
 }
 
 interface Options {
-  kind: Kind
+  kind: Kind;
 }
 
 export class MediaStreamTrack {
@@ -23,13 +23,15 @@ export class MediaStreamTrack {
   }
 
   public startCapture() {
-    this._nativeTrack.startCapture((data: VideoFrame) => {
-      this._frameEmitter.emit('frame', data);
-    },
+    this._nativeTrack.startCapture(
+      (data: VideoFrame) => {
+        this._frameEmitter.emit("frame", data);
+      },
       () => {
-        console.log('111111111111111111111111111111111111111111');
-        this._frameEmitter.emit('end');
-      });
+        console.log("111111111111111111111111111111111111111111");
+        this._frameEmitter.emit("end");
+      },
+    );
   }
 
   public stopCapture() {
