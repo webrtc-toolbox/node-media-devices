@@ -5,12 +5,11 @@
 #include <napi.h>
 
 @interface VideoCaptureDelegate
-    : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate> {
-  Napi::ThreadSafeFunction tsfn;
-  std::atomic<bool> isReleased;
-}
+    : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+@property (nonatomic, assign) Napi::ThreadSafeFunction tsfn;
+@property (atomic, assign) BOOL isReleased;
 
-- (id)initWithTSFN:(Napi::ThreadSafeFunction)tsfn;
+- (instancetype)initWithTSFN:(Napi::ThreadSafeFunction)tsfn;
 @end
 
 #endif

@@ -1,16 +1,16 @@
-#include "./native-media-stream-track.h"
+#include "./native-video-stream-track.h"
+#include "./video-capture-delegate.h"
 #include <AVFoundation/AVFoundation.h>
 #include <iostream>
 #include <napi.h>
-#include "./video-capture-delegate.h"
 
 @implementation VideoCaptureDelegate
 
-- (id)initWithTSFN:(Napi::ThreadSafeFunction)tsfnParam {
+- (instancetype)initWithTSFN:(Napi::ThreadSafeFunction)tsfn {
   self = [super init];
   if (self) {
-    self->tsfn = tsfnParam;
-    self->isReleased = false;
+    _tsfn = tsfn;
+    _isReleased = NO;
   }
   return self;
 }
@@ -18,7 +18,7 @@
 - (void)captureOutput:(AVCaptureOutput *)output
     didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
            fromConnection:(AVCaptureConnection *)connection {
-  if (isReleased) {
+  if (self.isReleased) {
     return;
   }
 
@@ -43,7 +43,7 @@
     format = "I420";
   } else if (pixelFormat == kCVPixelFormatType_32RGBA) {
     format = "RGBA";
-  }  else if (pixelFormat == kCVPixelFormatType_24RGB) {
+  } else if (pixelFormat == kCVPixelFormatType_24RGB) {
     format = "RGB";
   } else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
     format = "NV12";
@@ -63,7 +63,7 @@
   uint8_t *pixelData = new uint8_t[bufferSize];
   memcpy(pixelData, baseAddress, bufferSize);
 
-  tsfn.BlockingCall([=](Napi::Env env, Napi::Function jsCallback) {
+  _tsfn.BlockingCall([=](Napi::Env env, Napi::Function jsCallback) {
     // Convert sampleBuffer to a Node.js Buffer or any other format
     Napi::Buffer<uint8_t> buffer = Napi::Buffer<uint8_t>::New(
         env, pixelData, bufferSize,
@@ -80,34 +80,31 @@
   });
 }
 
-- (void)setReleased {
-  isReleased = true;
-}
-
 @end
 
-Napi::Object NativeMediaStreamTrack::Init(Napi::Env env, Napi::Object exports) {
+Napi::Object NativeVideoStreamTrack::Init(Napi::Env env, Napi::Object exports) {
   Napi::HandleScope scope(env);
 
   Napi::Function func = DefineClass(
-      env, "NativeMediaStreamTrack",
-      {InstanceMethod("startCapture", &NativeMediaStreamTrack::startCapture),
-       InstanceMethod("stopCapture", &NativeMediaStreamTrack::stopCapture)});
+      env, "NativeVideoStreamTrack",
+      {InstanceMethod("startCapture", &NativeVideoStreamTrack::startCapture),
+       InstanceMethod("stopCapture", &NativeVideoStreamTrack::stopCapture)});
 
   Napi::FunctionReference *constructor = new Napi::FunctionReference();
   *constructor = Napi::Persistent(func);
   env.SetInstanceData(constructor);
 
-  exports.Set("NativeMediaStreamTrack", func);
+  exports.Set("NativeVideoStreamTrack", func);
   return exports;
 }
 
-NativeMediaStreamTrack::NativeMediaStreamTrack(const Napi::CallbackInfo &info)
-    : Napi::ObjectWrap<NativeMediaStreamTrack>(info),
-      session{[[AVCaptureSession alloc] init]}, delegate{nil} {}
+NativeVideoStreamTrack::NativeVideoStreamTrack(const Napi::CallbackInfo &info)
+    : Napi::ObjectWrap<NativeVideoStreamTrack>(info),
+      session{[[AVCaptureSession alloc] init]}, delegate{nil},
+      isTsfnReleased{false} {}
 
 Napi::Value
-NativeMediaStreamTrack::startCapture(const Napi::CallbackInfo &info) {
+NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
 
   if (info.Length() < 1 || !info[0].IsFunction()) {
@@ -142,6 +139,7 @@ NativeMediaStreamTrack::startCapture(const Napi::CallbackInfo &info) {
                 [errorString](Napi::Env env, Napi::Function jsCallback) {
                   jsCallback.Call({Napi::String::New(env, errorString)});
                 });
+            isTsfnReleased = true;
             tsfn.Release();
             return;
           }
@@ -169,6 +167,7 @@ NativeMediaStreamTrack::startCapture(const Napi::CallbackInfo &info) {
                            queue:nil
                       usingBlock:^(NSNotification *note) {
                         // Notification handling code here if needed
+                        std::cout << "session did stop running" << std::endl;
                       }];
 
           [session startRunning];
@@ -179,7 +178,7 @@ NativeMediaStreamTrack::startCapture(const Napi::CallbackInfo &info) {
 }
 
 Napi::Value
-NativeMediaStreamTrack::stopCapture(const Napi::CallbackInfo &info) {
+NativeVideoStreamTrack::stopCapture(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
 
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
@@ -197,27 +196,28 @@ NativeMediaStreamTrack::stopCapture(const Napi::CallbackInfo &info) {
                        for (AVCaptureOutput *output in session.outputs) {
                          [session removeOutput:output];
                        }
-
-                       session = nil;
                      }
+
+                     delegate.isReleased = YES;
+                     isTsfnReleased = true;
+                     tsfn.Release();
                    }
                  });
-
-  if (tsfn) {
-    tsfn.Release();
-    [delegate setReleased];
-  }
 
   return env.Undefined();
 }
 
-NativeMediaStreamTrack::~NativeMediaStreamTrack() {
+NativeVideoStreamTrack::~NativeVideoStreamTrack() {
   if (session) {
     [session stopRunning];
     [session release];
   }
-  
+
   if (delegate) {
     [delegate release];
+  }
+
+  if (!isTsfnReleased) {
+    tsfn.Release();
   }
 }
