@@ -1,8 +1,10 @@
-const { read } = require("fs");
 const {
   MediaStreamTrack,
   MediaStreamTrackProcessor,
+  enumerateDevices
 } = require("../dist/index");
+
+console.log(enumerateDevices());
 
 const videoTrack = new MediaStreamTrack({ kind: "video" });
 const audioTrack = new MediaStreamTrack({ kind: "audio" });
