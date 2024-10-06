@@ -32,7 +32,7 @@
         ['OS=="win"', {
           'sources': [
             "src/win/native-video-stream-track.cc",
-            "src/win/native-audio-stream-track.cc"
+            # "src/win/native-audio-stream-track.cc"
           ],
           'libraries': [
             '-lmf.lib',

@@ -24,6 +24,9 @@ private:
   void InitializeMF();
   void UninitializeMF();
   void ReadFrame();
+  void ProcessSample(IMFSample *pSample);
+  void GetFrameSize(UINT32 *width, UINT32 *height);
+  std::string GetPixelFormat(); 
 };
 
 #endif // NATIVE_VIDEO_STREAM_TRACK_H

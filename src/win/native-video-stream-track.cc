@@ -4,8 +4,10 @@
 #include <mfreadwrite.h>
 #include <napi.h>
 #include <thread>
+#include <iostream>
 
-Napi::Object NativeVideoStreamTrack::Init(Napi::Env env, Napi::Object exports) {
+Napi::Object NativeVideoStreamTrack::Init(Napi::Env env, Napi::Object exports)
+{
   Napi::Function func = DefineClass(
       env, "NativeVideoStreamTrack",
       {InstanceMethod("startCapture", &NativeVideoStreamTrack::startCapture),
@@ -21,24 +23,30 @@ Napi::Object NativeVideoStreamTrack::Init(Napi::Env env, Napi::Object exports) {
 
 NativeVideoStreamTrack::NativeVideoStreamTrack(const Napi::CallbackInfo &info)
     : Napi::ObjectWrap<NativeVideoStreamTrack>(info), sourceReader(nullptr),
-      isTsfnReleased(false) {
+      isTsfnReleased(false)
+{
   InitializeMF();
 }
 
-NativeVideoStreamTrack::~NativeVideoStreamTrack() {
-  UninitializeMF();
-  if (!isTsfnReleased) {
-    tsfn.Release();
-  }
+NativeVideoStreamTrack::~NativeVideoStreamTrack()
+{
+  // UninitializeMF();
+  // if (!isTsfnReleased)
+  // {
+  //   tsfn.Release();
+  // }
 }
 
-void NativeVideoStreamTrack::InitializeMF() {
+void NativeVideoStreamTrack::InitializeMF()
+{
   CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
   MFStartup(MF_VERSION);
 }
 
-void NativeVideoStreamTrack::UninitializeMF() {
-  if (sourceReader) {
+void NativeVideoStreamTrack::UninitializeMF()
+{
+  if (sourceReader)
+  {
     sourceReader->Release();
     sourceReader = nullptr;
   }
@@ -47,10 +55,12 @@ void NativeVideoStreamTrack::UninitializeMF() {
 }
 
 Napi::Value
-NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info) {
+NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info)
+{
   Napi::Env env = info.Env();
 
-  if (info.Length() < 1 || !info[0].IsFunction()) {
+  if (info.Length() < 1 || !info[0].IsFunction())
+  {
     Napi::TypeError::New(env, "Function expected as first argument")
         .ThrowAsJavaScriptException();
     return env.Undefined();
@@ -58,7 +68,8 @@ NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info) {
 
   Napi::Function jsCallback = info[0].As<Napi::Function>();
   tsfn = Napi::ThreadSafeFunction::New(env, jsCallback, "VideoCallback", 0, 1,
-                                       [](Napi::Env) {
+                                       [](Napi::Env)
+                                       {
                                          // Finalize
                                        });
 
@@ -71,95 +82,185 @@ NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info) {
   UINT32 count;
   MFEnumDeviceSources(pConfig, &ppDevices, &count);
 
-  if (count > 0) {
-    ppDevices[0]->ActivateObject(IID_PPV_ARGS(&sourceReader));
-    for (UINT32 i = 0; i < count; i++) {
+  if (count > 0)
+  {
+    std::cout << "Count: " << count << std::endl;
+
+    // Create the media source
+    IMFMediaSource *pSource = NULL;
+    HRESULT hr = ppDevices[0]->ActivateObject(IID_PPV_ARGS(&pSource));
+    if (FAILED(hr))
+    {
+      std::cerr << "Failed to activate media source. HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
+    }
+    else
+    {
+      std::cout << "Media source activated successfully." << std::endl;
+
+      // Create the source reader
+      hr = MFCreateSourceReaderFromMediaSource(pSource, NULL, &sourceReader);
+      if (FAILED(hr))
+      {
+        std::cerr << "Failed to create source reader. HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
+      }
+      else
+      {
+        std::cout << "Source reader created successfully." << std::endl;
+      }
+
+      // Release the media source as it's no longer needed
+      pSource->Release();
+    }
+
+    for (UINT32 i = 0; i < count; i++)
+    {
       ppDevices[i]->Release();
     }
     CoTaskMemFree(ppDevices);
   }
+  else
+  {
+    std::cerr << "No video capture devices found." << std::endl;
+  }
 
   pConfig->Release();
 
-  if (sourceReader) {
+  if (sourceReader)
+  {
+    std::cout << "Starting capture thread" << std::endl;
     std::thread captureThread(&NativeVideoStreamTrack::ReadFrame, this);
     captureThread.detach();
+  }
+  else
+  {
+    std::cerr << "Source reader is null, cannot start capture thread." << std::endl;
   }
 
   return env.Undefined();
 }
 
-void NativeVideoStreamTrack::ReadFrame() {
-  while (sourceReader) {
-    IMFSample *pSample = NULL;
+void NativeVideoStreamTrack::ReadFrame()
+{
+  while (sourceReader && !isTsfnReleased)
+  {
+    IMFSample *pSample = nullptr;
     DWORD streamIndex, flags;
     LONGLONG llTimeStamp;
-    HRESULT hr =
-        sourceReader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0,
-                                 &streamIndex, &flags, &llTimeStamp, &pSample);
+    HRESULT hr = sourceReader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0,
+                                          &streamIndex, &flags, &llTimeStamp, &pSample);
 
-    if (SUCCEEDED(hr) && pSample) {
-      IMFMediaBuffer *pBuffer = NULL;
-      pSample->GetBufferByIndex(0, &pBuffer);
-
-      BYTE *pBytes;
-      DWORD maxLength, currentLength;
-      pBuffer->Lock(&pBytes, &maxLength, &currentLength);
-
-      // Get the pixel format
-      IMFMediaType *pMediaType = NULL;
-      GUID subtype;
-      HRESULT hr = sourceReader->GetCurrentMediaType(
-          MF_SOURCE_READER_FIRST_VIDEO_STREAM, &pMediaType);
-
-      std::string format;
-
-      if (SUCCEEDED(hr)) {
-        hr = pMediaType->GetGUID(MF_MT_SUBTYPE, &subtype);
-        if (SUCCEEDED(hr)) {
-          // You can now use the subtype to determine the pixel format
-          if (subtype == MFVideoFormat_RGB32) {
-            format = "RGB32";
-          } else if (subtype == MFVideoFormat_YUY2) {
-            format = "YUY2";
-          } else if (subtype == MFVideoFormat_NV12) {
-            format = "NV12";
-          } else {
-            format = "Unknown";
-          }
-          // Add more format checks as needed
-        } else {
-          format = "Unknown";
-        }
-        pMediaType->Release();
-      }
-
-      auto callback = [](Napi::Env env, Napi::Function jsCallback, BYTE *data,
-                         DWORD size) {
-        Napi::Buffer<BYTE> buffer = Napi::Buffer<BYTE>::Copy(env, data, size);
-        jsCallback.Call({buffer});
-      };
-
-      napi_status status = tsfn.BlockingCall(pBytes, currentLength, callback);
-      if (status != napi_ok) {
-        break;
-      }
-
-      pBuffer->Unlock();
-      pBuffer->Release();
-      pSample->Release();
+    if (FAILED(hr) || !pSample)
+    {
+      continue;
     }
+
+    ProcessSample(pSample);
+    pSample->Release();
   }
 }
 
+void NativeVideoStreamTrack::ProcessSample(IMFSample *pSample)
+{
+  IMFMediaBuffer *pBuffer = nullptr;
+  HRESULT hr = pSample->GetBufferByIndex(0, &pBuffer);
+  if (FAILED(hr))
+  {
+    return;
+  }
+
+  BYTE *pBytes;
+  DWORD maxLength, currentLength;
+  hr = pBuffer->Lock(&pBytes, &maxLength, &currentLength);
+  if (FAILED(hr) || pBytes == nullptr || currentLength == 0)
+  {
+    pBuffer->Release();
+    return;
+  }
+
+  BYTE *bufferData = new BYTE[currentLength];
+  memcpy(bufferData, pBytes, currentLength);
+
+  std::string format = GetPixelFormat();
+  UINT32 width, height;
+  GetFrameSize(&width, &height);
+
+  tsfn.BlockingCall([=](Napi::Env env, Napi::Function jsCallback)
+  {
+    Napi::Buffer<BYTE> buffer = Napi::Buffer<BYTE>::New(env, bufferData, currentLength, 
+        [](Napi::Env, BYTE* data) { delete[] data; });
+
+    Napi::Object frameData = Napi::Object::New(env);
+    frameData.Set("data", buffer);
+    frameData.Set("format", Napi::String::New(env, format));
+    frameData.Set("width", Napi::Number::New(env, width));
+    frameData.Set("height", Napi::Number::New(env, height));
+
+    jsCallback.Call({frameData});
+  });
+
+  pBuffer->Unlock();
+  pBuffer->Release();
+}
+
+void NativeVideoStreamTrack::GetFrameSize(UINT32 *width, UINT32 *height)
+{
+  IMFMediaType *pMediaType = nullptr;
+  HRESULT hr = sourceReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, &pMediaType);
+  if (FAILED(hr))
+  {
+    *width = 0;
+    *height = 0;
+    return;
+  }
+
+  hr = MFGetAttributeSize(pMediaType, MF_MT_FRAME_SIZE, width, height);
+  pMediaType->Release();
+
+  if (FAILED(hr))
+  {
+    *width = 0;
+    *height = 0;
+  }
+}
+
+std::string NativeVideoStreamTrack::GetPixelFormat()
+{
+  IMFMediaType *pMediaType = nullptr;
+  HRESULT hr = sourceReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, &pMediaType);
+  if (FAILED(hr))
+  {
+    return "Unknown";
+  }
+
+  GUID subtype;
+  hr = pMediaType->GetGUID(MF_MT_SUBTYPE, &subtype);
+  pMediaType->Release();
+
+  if (FAILED(hr))
+  {
+    return "Unknown";
+  }
+
+  if (subtype == MFVideoFormat_RGB32)
+    return "RGB32";
+  if (subtype == MFVideoFormat_YUY2)
+    return "YUY2";
+  if (subtype == MFVideoFormat_NV12)
+    return "NV12";
+
+  return "Unknown";
+}
+
 Napi::Value
-NativeVideoStreamTrack::stopCapture(const Napi::CallbackInfo &info) {
+NativeVideoStreamTrack::stopCapture(const Napi::CallbackInfo &info)
+{
   Napi::Env env = info.Env();
 
-  if (sourceReader) {
-    sourceReader->Release();
-    sourceReader = nullptr;
-  }
+  // if (sourceReader)
+  // {
+  //   sourceReader->Release();
+  //   sourceReader = nullptr;
+  // }
 
   isTsfnReleased = true;
   tsfn.Release();

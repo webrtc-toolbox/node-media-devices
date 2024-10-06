@@ -4,8 +4,17 @@
 #include <mfreadwrite.h>
 #include <napi.h>
 #include <windows.h>
+#include <string>
+#include <codecvt>
+#include <locale>
 
-Napi::Value enumerateDevices(const Napi::Env &env) {
+std::string ConvertWideToUtf8(const std::wstring& wstr) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.to_bytes(wstr);
+}
+
+Napi::Value enumerateDevices(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   Napi::Array mediaDevices = Napi::Array::New(env);
   UINT32 count = 0;
 
@@ -30,7 +39,7 @@ Napi::Value enumerateDevices(const Napi::Env &env) {
 
       Napi::Object deviceInfo = Napi::Object::New(env);
       deviceInfo.Set("label", Napi::String::New(
-                                  env, std::wstring(friendlyName, nameLength)));
+                                  env, ConvertWideToUtf8(std::wstring(friendlyName, nameLength))));
       deviceInfo.Set("deviceId", Napi::String::New(env, std::to_string(i)));
       deviceInfo.Set("kind", "videoinput");
 
@@ -66,7 +75,7 @@ Napi::Value enumerateDevices(const Napi::Env &env) {
 
       Napi::Object deviceInfo = Napi::Object::New(env);
       deviceInfo.Set("label", Napi::String::New(
-                                  env, std::wstring(friendlyName, nameLength)));
+                                  env, ConvertWideToUtf8(std::wstring(friendlyName, nameLength))));
       deviceInfo.Set("deviceId", Napi::String::New(env, std::to_string(i)));
       deviceInfo.Set("kind", "audioinput");
 
