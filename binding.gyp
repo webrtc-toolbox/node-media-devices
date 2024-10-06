@@ -25,8 +25,8 @@
             "OTHER_LDFLAGS": ["-framework AVFoundation","-framework Cocoa"],
           },
           "sources": [
-            "src/native/native-video-stream-track.mm",
-            "src/native/native-audio-stream-track.mm"
+            "src/mac/native-video-stream-track.mm",
+            "src/mac/native-audio-stream-track.mm"
           ]
         }],
         ['OS=="win"', {
