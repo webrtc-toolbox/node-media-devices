@@ -23,10 +23,6 @@
             "OTHER_CPLUSPLUSFLAGS" : ['-ObjC++'],
             # "OTHER_CFLAGS":["-fobjc-arc",'-fmodules']
             "OTHER_LDFLAGS": ["-framework AVFoundation","-framework Cocoa"],
-            'sources': [
-              "src/mac/native-video-stream-track.mm",
-              "src/mac/native-audio-stream-track.mm"
-            ] 
           }
         }],
         ['OS=="win"', {

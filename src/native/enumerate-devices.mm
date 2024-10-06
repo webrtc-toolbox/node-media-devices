@@ -2,156 +2,204 @@
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
-#include <windows.h>
 #include <napi.h>
+#include <windows.h>
 
-Napi::Array listAllMediaDevices(const Napi::Env &env) {
-    Napi::Array mediaDevices = Napi::Array::New(env);
-    UINT32 count = 0;
+Napi::Value enumerateDevices(const Napi::Env &env) {
+  Napi::Array mediaDevices = Napi::Array::New(env);
+  UINT32 count = 0;
 
-    // Initialize COM and Media Foundation
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    MFStartup(MF_VERSION);
+  // Initialize COM and Media Foundation
+  CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+  MFStartup(MF_VERSION);
 
-    // Enumerate video devices
-    IMFActivate **ppDevices = NULL;
-    IMFAttributes *pVideoConfig = NULL;
-    MFCreateAttributes(&pVideoConfig, 1);
-    pVideoConfig->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
-    HRESULT hr = MFEnumDeviceSources(pVideoConfig, &ppDevices, &count);
+  // Enumerate video devices
+  IMFActivate **ppDevices = NULL;
+  IMFAttributes *pVideoConfig = NULL;
+  MFCreateAttributes(&pVideoConfig, 1);
+  pVideoConfig->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                        MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+  HRESULT hr = MFEnumDeviceSources(pVideoConfig, &ppDevices, &count);
 
-    if (SUCCEEDED(hr)) {
-        for (UINT32 i = 0; i < count; i++) {
-            WCHAR *friendlyName = NULL;
-            UINT32 nameLength = 0;
-            ppDevices[i]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &friendlyName, &nameLength);
+  if (SUCCEEDED(hr)) {
+    for (UINT32 i = 0; i < count; i++) {
+      WCHAR *friendlyName = NULL;
+      UINT32 nameLength = 0;
+      ppDevices[i]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                                       &friendlyName, &nameLength);
 
-            Napi::Object deviceInfo = Napi::Object::New(env);
-            deviceInfo.Set("label", Napi::String::New(env, std::wstring(friendlyName, nameLength)));
-            deviceInfo.Set("deviceId", Napi::String::New(env, std::to_string(i)));
-            deviceInfo.Set("kind", "videoinput");
+      Napi::Object deviceInfo = Napi::Object::New(env);
+      deviceInfo.Set("label", Napi::String::New(
+                                  env, std::wstring(friendlyName, nameLength)));
+      deviceInfo.Set("deviceId", Napi::String::New(env, std::to_string(i)));
+      deviceInfo.Set("kind", "videoinput");
 
-            mediaDevices.Set(mediaDevices.Length(), deviceInfo);
+      mediaDevices.Set(mediaDevices.Length(), deviceInfo);
 
-            CoTaskMemFree(friendlyName);
-            ppDevices[i]->Release();
-        }
-        CoTaskMemFree(ppDevices);
+      CoTaskMemFree(friendlyName);
+      ppDevices[i]->Release();
     }
-
-    pVideoConfig->Release();
-
-    // Enumerate audio devices
-    ppDevices = NULL;
-    IMFAttributes *pAudioConfig = NULL;
-    MFCreateAttributes(&pAudioConfig, 1);
-    pAudioConfig->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_GUID);
-    hr = MFEnumDeviceSources(pAudioConfig, &ppDevices, &count);
-
-    if (SUCCEEDED(hr)) {
-        for (UINT32 i = 0; i < count; i++) {
-            WCHAR *friendlyName = NULL;
-            UINT32 nameLength = 0;
-            ppDevices[i]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &friendlyName, &nameLength);
-
-            Napi::Object deviceInfo = Napi::Object::New(env);
-            deviceInfo.Set("label", Napi::String::New(env, std::wstring(friendlyName, nameLength)));
-            deviceInfo.Set("deviceId", Napi::String::New(env, std::to_string(i)));
-            deviceInfo.Set("kind", "audioinput");
-
-            mediaDevices.Set(mediaDevices.Length(), deviceInfo);
-
-            CoTaskMemFree(friendlyName);
-            ppDevices[i]->Release();
-        }
-        CoTaskMemFree(ppDevices);
-    }
-
-    pAudioConfig->Release();
-
-    // Shutdown Media Foundation and uninitialize COM
-    MFShutdown();
-    CoUninitialize();
+    CoTaskMemFree(ppDevices);
+  } else {
+    Napi::Error::New(env, "Failed to enumerate video devices")
+        .ThrowAsJavaScriptException();
 
     return mediaDevices;
+  }
+
+  pVideoConfig->Release();
+
+  // Enumerate audio devices
+  ppDevices = NULL;
+  IMFAttributes *pAudioConfig = NULL;
+  MFCreateAttributes(&pAudioConfig, 1);
+  pAudioConfig->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                        MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_GUID);
+  hr = MFEnumDeviceSources(pAudioConfig, &ppDevices, &count);
+
+  if (SUCCEEDED(hr)) {
+    for (UINT32 i = 0; i < count; i++) {
+      WCHAR *friendlyName = NULL;
+      UINT32 nameLength = 0;
+      ppDevices[i]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
+                                       &friendlyName, &nameLength);
+
+      Napi::Object deviceInfo = Napi::Object::New(env);
+      deviceInfo.Set("label", Napi::String::New(
+                                  env, std::wstring(friendlyName, nameLength)));
+      deviceInfo.Set("deviceId", Napi::String::New(env, std::to_string(i)));
+      deviceInfo.Set("kind", "audioinput");
+
+      mediaDevices.Set(mediaDevices.Length(), deviceInfo);
+
+      CoTaskMemFree(friendlyName);
+      ppDevices[i]->Release();
+    }
+    CoTaskMemFree(ppDevices);
+  }
+
+  pAudioConfig->Release();
+
+  // Shutdown Media Foundation and uninitialize COM
+  MFShutdown();
+  CoUninitialize();
+
+  return mediaDevices;
 }
 
 #elif defined(__APPLE__)
-#include <Foundation/Foundation.h>
 #include <AVFoundation/AVFoundation.h>
-#include <regex>
+#include <Foundation/Foundation.h>
+#include <iostream>
 #include <napi.h>
+#include <thread>
 
-std::string convertNSStringToStdString(NSString *nsString) {
-  if (nsString == nil) {
-    return std::string();
+class EnumerateDevicesWorker : public Napi::AsyncWorker {
+public:
+  EnumerateDevicesWorker(Napi::Promise::Deferred deferred)
+      : Napi::AsyncWorker(deferred.Env()), deferred_(deferred) {}
+
+  void Execute() override {
+    @autoreleasepool {
+      NSArray *deviceTypes = @[
+        AVCaptureDeviceTypeBuiltInWideAngleCamera,
+        AVCaptureDeviceTypeBuiltInMicrophone
+      ];
+
+      AVCaptureDeviceDiscoverySession *discoverySession =
+          [AVCaptureDeviceDiscoverySession
+              discoverySessionWithDeviceTypes:deviceTypes
+                                    mediaType:nil
+                                     position:
+                                         AVCaptureDevicePositionUnspecified];
+
+      device_count_ =
+          static_cast<unsigned long>(discoverySession.devices.count);
+
+      // Get default video device
+      AVCaptureDevice *defaultVideoDevice =
+          [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+      defaultVideoLabel_ =
+          convertNSStringToStdString(defaultVideoDevice.localizedName);
+
+      // Get default audio device
+      AVCaptureDevice *defaultAudioDevice =
+          [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
+      defaultAudioLabel_ =
+          convertNSStringToStdString(defaultAudioDevice.localizedName);
+
+      // Enumerate all devices
+      for (AVCaptureDevice *device in discoverySession.devices) {
+        DeviceInfo info;
+        info.label = convertNSStringToStdString(device.localizedName);
+        info.deviceId = convertNSStringToStdString(device.uniqueID);
+        info.kind = [device.deviceType containsString:@"Camera"] ? "videoinput"
+                                                                 : "audioinput";
+        devices_.push_back(info);
+      }
+    }
   }
 
-  const char *cString = [nsString UTF8String];
-  return std::string(cString);
-}
+  void OnOK() override {
+    Napi::Env env = Env();
+    Napi::Array mediaDevices = Napi::Array::New(env, device_count_ + 2);
 
-Napi::Array listAllMediaDevices(const Napi::Env &env) {
-  NSArray *deviceTypes = @[
-    AVCaptureDeviceTypeBuiltInWideAngleCamera,
-    AVCaptureDeviceTypeBuiltInMicrophone
-  ];
+    // Add default video device
+    Napi::Object defaultVideoDeviceInfo = Napi::Object::New(env);
+    defaultVideoDeviceInfo.Set("label", defaultVideoLabel_);
+    defaultVideoDeviceInfo.Set("deviceId", "default");
+    defaultVideoDeviceInfo.Set("kind", "videoinput");
+    mediaDevices.Set((uint32_t)0, defaultVideoDeviceInfo);
 
-  AVCaptureDeviceDiscoverySession *discoverySession =
-      [AVCaptureDeviceDiscoverySession
-          discoverySessionWithDeviceTypes:deviceTypes
-                                mediaType:nil
-                                 position:AVCaptureDevicePositionUnspecified];
+    // Add default audio device
+    Napi::Object defaultAudioDeviceInfo = Napi::Object::New(env);
+    defaultAudioDeviceInfo.Set("label", defaultAudioLabel_);
+    defaultAudioDeviceInfo.Set("deviceId", "default");
+    defaultAudioDeviceInfo.Set("kind", "audioinput");
+    mediaDevices.Set((uint32_t)1, defaultAudioDeviceInfo);
 
-  unsigned long device_cout{
-      static_cast<unsigned long>(discoverySession.devices.count)};
-
-  Napi::Array mediaDevices = Napi::Array::New(env, device_cout);
-
-  // get default video device
-  AVCaptureDevice *defaultVideoDevice =
-      [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
-  Napi::Object defaultVideoDeviceInfo = Napi::Object::New(env);
-  defaultVideoDeviceInfo.Set(
-      "label", convertNSStringToStdString(defaultVideoDevice.localizedName));
-  defaultVideoDeviceInfo.Set("deviceId", "default");
-  defaultVideoDeviceInfo.Set("kind", "videoinput");
-  mediaDevices.Set((size_t)0, defaultVideoDeviceInfo);
-
-  // get default audio device
-  AVCaptureDevice *defaultAudioDevice =
-      [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
-  Napi::Object defaultAudioDeviceInfo = Napi::Object::New(env);
-  defaultAudioDeviceInfo.Set(
-      "label", convertNSStringToStdString(defaultAudioDevice.localizedName));
-  defaultAudioDeviceInfo.Set("deviceId", "default");
-  defaultAudioDeviceInfo.Set("kind", "audioinput");
-  mediaDevices.Set((size_t)1, defaultAudioDeviceInfo);
-
-  for (size_t i = 0; i < device_cout; i++) {
-    AVCaptureDevice *device = discoverySession.devices[i];
-
-    // NSLog(@"Device name: %@", device.localizedName);
-    // NSLog(@"Device type: %@", device.deviceType);
-    // NSLog(@"Device position: %ld", (long)device.position);
-
-    Napi::Object mediaDeviceInfo = Napi::Object::New(env);
-    mediaDeviceInfo.Set("label",
-                        convertNSStringToStdString(device.localizedName));
-    mediaDeviceInfo.Set("deviceId",
-                        convertNSStringToStdString(device.uniqueID));
-
-    std::regex camera_regex{"Camera"};
-    if (std::regex_search(convertNSStringToStdString(device.deviceType),
-                          camera_regex)) {
-      mediaDeviceInfo.Set("kind", "videoinput");
-    } else {
-      mediaDeviceInfo.Set("kind", "audioinput");
+    // Add all other devices
+    for (uint32_t i = 0; i < devices_.size(); i++) {
+      Napi::Object mediaDeviceInfo = Napi::Object::New(env);
+      mediaDeviceInfo.Set("label", devices_[i].label);
+      mediaDeviceInfo.Set("deviceId", devices_[i].deviceId);
+      mediaDeviceInfo.Set("kind", devices_[i].kind);
+      mediaDevices.Set(i + 2, mediaDeviceInfo);
     }
 
-    mediaDevices.Set(i + 2, mediaDeviceInfo);
+    deferred_.Resolve(mediaDevices);
   }
 
-  return mediaDevices;
+private:
+  std::string convertNSStringToStdString(NSString *nsString) {
+    if (nsString == nil) {
+      return std::string();
+    }
+
+    const char *cString = [nsString UTF8String];
+    return std::string(cString);
+  }
+
+  struct DeviceInfo {
+    std::string label;
+    std::string deviceId;
+    std::string kind;
+  };
+
+  Napi::Promise::Deferred deferred_;
+  unsigned long device_count_;
+  std::string defaultVideoLabel_;
+  std::string defaultAudioLabel_;
+  std::vector<DeviceInfo> devices_;
+};
+
+Napi::Value enumerateDevices(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  Napi::Promise::Deferred deferred = Napi::Promise::Deferred::New(env);
+
+  EnumerateDevicesWorker *worker = new EnumerateDevicesWorker(deferred);
+  worker->Queue();
+
+  return deferred.Promise();
 }
 #endif
