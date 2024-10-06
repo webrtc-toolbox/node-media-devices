@@ -6,11 +6,11 @@
       "cflags_cc!": [ "-fno-exceptions" ],
       "sources": [ 
           "src/native/media-devices-native.cc",
-          "src/native/native-media-stream.mm",
-          "src/native/native-media-recorder.mm",
-          "src/native/video-frame-delegate.mm",
-          "src/native/native-video-stream-track.mm",
-          "src/native/native-audio-stream-track.mm"
+          # "src/native/native-media-stream.mm",
+          # "src/native/native-media-recorder.mm",
+          # "src/native/video-frame-delegate.mm",
+          # "src/native/native-video-stream-track.mm",
+          # "src/native/native-audio-stream-track.mm"
         ],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")"
@@ -23,7 +23,11 @@
             "OTHER_CPLUSPLUSFLAGS" : ['-ObjC++'],
             # "OTHER_CFLAGS":["-fobjc-arc",'-fmodules']
             "OTHER_LDFLAGS": ["-framework AVFoundation","-framework Cocoa"],
-          }
+          },
+          "sources": [
+            "src/native/native-video-stream-track.mm",
+            "src/native/native-audio-stream-track.mm"
+          ]
         }],
         ['OS=="win"', {
           'sources': [

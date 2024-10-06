@@ -1,22 +1,28 @@
 const {
-  MediaStreamTrack,
-  MediaStreamTrackProcessor,
-  enumerateDevices
+    MediaStreamTrack,
+    MediaStreamTrackProcessor,
+    enumerateDevices
 } = require("../dist/index");
 
 async function main() {
-    setTimeout(()=>{},10000);
-  const result = await enumerateDevices();
-  console.log(result);
+    const result = await enumerateDevices();
+    console.log(result);
+
+    const videoTrack = new MediaStreamTrack({ kind: "video" });
+    const audioTrack = new MediaStreamTrack({ kind: "audio" });
+
+    const videoProcessor = new MediaStreamTrackProcessor({ track: videoTrack });
+    const audioProcessor = new MediaStreamTrackProcessor({ track: audioTrack });
+
+    setTimeout(() => {
+        videoTrack.stopCapture();
+        audioTrack.stopCapture();
+        console.log("stopped");
+    }, 2000);
 }
 
 main();
 
-// const videoTrack = new MediaStreamTrack({ kind: "video" });
-// const audioTrack = new MediaStreamTrack({ kind: "audio" });
-
-// const videoProcessor = new MediaStreamTrackProcessor({ track: videoTrack });
-// const audioProcessor = new MediaStreamTrackProcessor({ track: audioTrack });
 
 // // const reader = processor.readable.getReader();
 
@@ -36,8 +42,3 @@ main();
 
 // // processFrame();
 
-// setTimeout(() => {
-//   videoTrack.stopCapture();
-//   audioTrack.stopCapture();
-//   console.log("stopped");
-// }, 2000);
