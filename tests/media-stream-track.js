@@ -8,7 +8,7 @@ async function main() {
     const result = await enumerateDevices();
     console.log(result);
 
-    const videoTrack = new MediaStreamTrack({ kind: "video" });
+    const videoTrack = new MediaStreamTrack({ kind: "audio" });
     // const audioTrack = new MediaStreamTrack({ kind: "audio" });
 
     const videoProcessor = new MediaStreamTrackProcessor({ track: videoTrack });
@@ -34,11 +34,11 @@ async function main() {
     processFrame();
     // const audioProcessor = new MediaStreamTrackProcessor({ track: audioTrack });
 
-    setTimeout(() => {
-        videoTrack.stopCapture();
-        // audioTrack.stopCapture();
-        console.log("stopped");
-    }, 2000);
+    // setTimeout(() => {
+    //     videoTrack.stopCapture();
+    //     // audioTrack.stopCapture();
+    //     console.log("stopped");
+    // }, 2000);
 }
 
 main();

@@ -23,6 +23,7 @@ private:
   void UninitializeMF();
   void ReadFrame();
   void ProcessSample(IMFSample *pSample);
-  void GetAudioFormat(WAVEFORMATEX *pWaveFormat);
+  WAVEFORMATEX GetAudioFormat();
+  void GetAudioFormatFoo(WAVEFORMATEX *waveFormat, IMFMediaType *pMediaType);
   std::string GetAudioEncoding();
 };
