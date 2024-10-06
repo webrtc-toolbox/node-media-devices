@@ -27,6 +27,7 @@ NativeAudioStreamTrack::NativeAudioStreamTrack(const Napi::CallbackInfo &info)
 NativeAudioStreamTrack::~NativeAudioStreamTrack()
 {
     UninitializeMF();
+
     if (!isTsfnReleased)
     {
         tsfn.Release();
@@ -41,12 +42,22 @@ void NativeAudioStreamTrack::InitializeMF()
 
 void NativeAudioStreamTrack::UninitializeMF()
 {
+    // Release the source reader if it exists
     if (sourceReader)
     {
         sourceReader->Release();
         sourceReader = nullptr;
     }
-    MFShutdown();
+
+    // Shut down Media Foundation
+    HRESULT hr = MFShutdown();
+    if (FAILED(hr))
+    {
+        // Handle or log the error
+        std::cerr << "MFShutdown failed: " << std::hex << hr << std::endl;
+    }
+
+    // Uninitialize COM
     CoUninitialize();
 }
 
@@ -144,6 +155,7 @@ Napi::Value NativeAudioStreamTrack::stopCapture(const Napi::CallbackInfo &info)
 {
     if (!isTsfnReleased)
     {
+        isTsfnReleased = true;
         tsfn.Release();
     }
     return info.Env().Undefined();
@@ -202,7 +214,7 @@ void NativeAudioStreamTrack::ProcessSample(IMFSample *pSample)
     WAVEFORMATEX wav_format{GetAudioFormat()};
     auto encoding{GetAudioEncoding()};
 
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(hr) && !isTsfnReleased)
     {
         tsfn.BlockingCall([pAudioData, cbCurrentLength, wav_format, encoding](Napi::Env env, Napi::Function jsCallback)
                           {

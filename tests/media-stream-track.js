@@ -34,11 +34,11 @@ async function main() {
     processFrame();
     // const audioProcessor = new MediaStreamTrackProcessor({ track: audioTrack });
 
-    // setTimeout(() => {
-    //     videoTrack.stopCapture();
-    //     // audioTrack.stopCapture();
-    //     console.log("stopped");
-    // }, 2000);
+    setTimeout(() => {
+        videoTrack.stopCapture();
+        // audioTrack.stopCapture();
+        console.log("stopped");
+    }, 2000);
 }
 
 main();

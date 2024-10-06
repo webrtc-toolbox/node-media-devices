@@ -5,7 +5,8 @@
 #include <mfapi.h>
 #include <mfreadwrite.h>
 
-class NativeAudioStreamTrack : public Napi::ObjectWrap<NativeAudioStreamTrack> {
+class NativeAudioStreamTrack : public Napi::ObjectWrap<NativeAudioStreamTrack>
+{
 public:
   static Napi::Object Init(Napi::Env env, Napi::Object exports);
   NativeAudioStreamTrack(const Napi::CallbackInfo &info);
