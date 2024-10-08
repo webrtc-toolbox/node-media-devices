@@ -17,8 +17,15 @@ public:
 
   Napi::Value stopCapture(const Napi::CallbackInfo &info);
 
+  Napi::Value getLabel(const Napi::CallbackInfo &info);
+
+  Napi::Value getId(const Napi::CallbackInfo &info);
+
 private:
   AVCaptureSession *session;
+  AVCaptureDevice *device;
+  std::string label;
+  std::string id;
   Napi::ThreadSafeFunction tsfn;
   AudioCaptureDelegate *delegate;
   std::atomic<bool> isTsfnReleased;

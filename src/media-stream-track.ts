@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import { EventEmitter } from "node:events";
 const { NativeVideoStreamTrack, NativeAudioStreamTrack } = require("bindings")("media-devices-native");
 import { VideoFrame } from "./types";
@@ -9,6 +10,7 @@ enum Kind {
 
 interface Options {
   kind: Kind;
+  constraints?: MediaTrackConstraints;
 }
 
 export class MediaStreamTrack {
@@ -16,13 +18,28 @@ export class MediaStreamTrack {
   public _frameEmitter: EventEmitter;
   private _nativeTrack: any;
 
+
+
+  public get label() {
+    return this._nativeTrack.getLabel();
+  }
+
+  public get id() {
+    return this._nativeTrack.getId();
+  }
+
   public constructor(options: Options) {
     this.kind = options.kind;
     this._frameEmitter = new EventEmitter();
+
+    const constraints = {
+      deviceId: options.constraints?.deviceId || "default"
+    };
+
     if (this.kind === Kind.VIDEO) {
-      this._nativeTrack = new NativeVideoStreamTrack();
+      this._nativeTrack = new NativeVideoStreamTrack(constraints);
     } else {
-      this._nativeTrack = new NativeAudioStreamTrack();
+      this._nativeTrack = new NativeAudioStreamTrack(constraints);
     }
   }
 

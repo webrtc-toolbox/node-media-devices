@@ -6,9 +6,11 @@
 
 @implementation VideoCaptureDelegate
 
-- (instancetype)initWithTSFN:(Napi::ThreadSafeFunction)tsfn {
+- (instancetype)initWithTSFN:(Napi::ThreadSafeFunction)tsfn
+{
   self = [super init];
-  if (self) {
+  if (self)
+  {
     _tsfn = tsfn;
     _isReleased = NO;
   }
@@ -17,14 +19,17 @@
 
 - (void)captureOutput:(AVCaptureOutput *)output
     didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
-           fromConnection:(AVCaptureConnection *)connection {
-  if (self.isReleased) {
+           fromConnection:(AVCaptureConnection *)connection
+{
+  if (self.isReleased)
+  {
     return;
   }
 
   // Process the sampleBuffer and send data to JavaScript
   CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-  if (!imageBuffer) {
+  if (!imageBuffer)
+  {
     // Handle error
     return;
   }
@@ -33,21 +38,36 @@
   OSType pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
 
   std::string format;
-  if (pixelFormat == kCVPixelFormatType_32BGRA) {
+  if (pixelFormat == kCVPixelFormatType_32BGRA)
+  {
     format = "BGRA";
-  } else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
+  }
+  else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
+  {
     format = "NV12";
-  } else if (pixelFormat == kCVPixelFormatType_422YpCbCr8) {
+  }
+  else if (pixelFormat == kCVPixelFormatType_422YpCbCr8)
+  {
     format = "I422";
-  } else if (pixelFormat == kCVPixelFormatType_420YpCbCr8Planar) {
+  }
+  else if (pixelFormat == kCVPixelFormatType_420YpCbCr8Planar)
+  {
     format = "I420";
-  } else if (pixelFormat == kCVPixelFormatType_32RGBA) {
+  }
+  else if (pixelFormat == kCVPixelFormatType_32RGBA)
+  {
     format = "RGBA";
-  } else if (pixelFormat == kCVPixelFormatType_24RGB) {
+  }
+  else if (pixelFormat == kCVPixelFormatType_24RGB)
+  {
     format = "RGB";
-  } else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
+  }
+  else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+  {
     format = "NV12";
-  } else {
+  }
+  else
+  {
     format = "UNKNOWN";
   }
 
@@ -63,7 +83,11 @@
   uint8_t *pixelData = new uint8_t[bufferSize];
   memcpy(pixelData, baseAddress, bufferSize);
 
-  _tsfn.BlockingCall([=](Napi::Env env, Napi::Function jsCallback) {
+  CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+  int64_t timestamp = CMTimeGetSeconds(presentationTime) * 1000000; // Convert to microseconds
+
+  _tsfn.BlockingCall([=](Napi::Env env, Napi::Function jsCallback)
+                     {
     // Convert sampleBuffer to a Node.js Buffer or any other format
     Napi::Buffer<uint8_t> buffer = Napi::Buffer<uint8_t>::New(
         env, pixelData, bufferSize,
@@ -71,24 +95,29 @@
 
     // Create an object to hold frame data
     Napi::Object frameData = Napi::Object::New(env);
+    frameData.Set("timestamp", Napi::Number::New(env, timestamp));
     frameData.Set("data", buffer);
-    frameData.Set("codedWitdh", Napi::Number::New(env, width));
+    frameData.Set("codedWidth", Napi::Number::New(env, width));
     frameData.Set("codedHeight", Napi::Number::New(env, height));
     frameData.Set("format", Napi::String::New(env, format));
 
-    jsCallback.Call({frameData});
-  });
+    jsCallback.Call({frameData}); });
+
+  CVPixelBufferUnlockBaseAddress(imageBuffer, kCVPixelBufferLock_ReadOnly);
 }
 
 @end
 
-Napi::Object NativeVideoStreamTrack::Init(Napi::Env env, Napi::Object exports) {
+Napi::Object NativeVideoStreamTrack::Init(Napi::Env env, Napi::Object exports)
+{
   Napi::HandleScope scope(env);
 
   Napi::Function func = DefineClass(
       env, "NativeVideoStreamTrack",
       {InstanceMethod("startCapture", &NativeVideoStreamTrack::startCapture),
-       InstanceMethod("stopCapture", &NativeVideoStreamTrack::stopCapture)});
+       InstanceMethod("stopCapture", &NativeVideoStreamTrack::stopCapture),
+       InstanceMethod("getLabel", &NativeVideoStreamTrack::getLabel),
+       InstanceMethod("getId", &NativeVideoStreamTrack::getId)});
 
   Napi::FunctionReference *constructor = new Napi::FunctionReference();
   *constructor = Napi::Persistent(func);
@@ -100,14 +129,51 @@ Napi::Object NativeVideoStreamTrack::Init(Napi::Env env, Napi::Object exports) {
 
 NativeVideoStreamTrack::NativeVideoStreamTrack(const Napi::CallbackInfo &info)
     : Napi::ObjectWrap<NativeVideoStreamTrack>(info),
-      session{[[AVCaptureSession alloc] init]}, delegate{nil},
-      isTsfnReleased{false} {}
+      session{[[AVCaptureSession alloc] init]},
+      delegate{nullptr},
+      isTsfnReleased{false},
+      device{nullptr},
+      label{""},
+      id{""}
+{
+  if (info.Length() < 1 || !info[0].IsObject())
+  {
+    Napi::Error::New(info.Env(), "Expected constraints").ThrowAsJavaScriptException();
+    return;
+  }
+
+  Napi::Object constraints = info[0].As<Napi::Object>();
+  if (constraints.Has("deviceId") && constraints.Get("deviceId").IsString())
+  {
+    std::string deviceId = constraints.Get("deviceId").As<Napi::String>().Utf8Value();
+
+    if (deviceId == "default")
+    {
+      device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+    }
+    else
+    {
+      device = [AVCaptureDevice deviceWithUniqueID:[NSString stringWithUTF8String:deviceId.c_str()]];
+    }
+
+    if (!device)
+    {
+      Napi::Error::New(info.Env(), "Device not found").ThrowAsJavaScriptException();
+      return;
+    }
+
+    label = std::string([[device localizedName] UTF8String]);
+    id = std::string([[device uniqueID] UTF8String]);
+  }
+}
 
 Napi::Value
-NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info) {
+NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info)
+{
   Napi::Env env = info.Env();
 
-  if (info.Length() < 1 || !info[0].IsFunction()) {
+  if (info.Length() < 1 || !info[0].IsFunction())
+  {
     Napi::TypeError::New(env, "Expected one callback function")
         .ThrowAsJavaScriptException();
     return env.Null();
@@ -121,22 +187,26 @@ NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info) {
 
   dispatch_async(
       dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        @autoreleasepool {
+        @autoreleasepool
+        {
           [session setSessionPreset:AVCaptureSessionPresetHigh];
 
-          AVCaptureDevice *device =
-              [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+          // label = std::string([[device localizedName] UTF8String]);
+
           NSError *error = nil;
           AVCaptureDeviceInput *input =
-              [AVCaptureDeviceInput deviceInputWithDevice:device error:&error];
+              [AVCaptureDeviceInput deviceInputWithDevice:device
+                                                    error:&error];
 
-          if (!input) {
+          if (!input)
+          {
             NSString *errorDescription =
                 error ? [error localizedDescription] : @"Unknown error";
             std::string errorString = [errorDescription UTF8String];
 
             tsfn.BlockingCall(
-                [errorString](Napi::Env env, Napi::Function jsCallback) {
+                [errorString](Napi::Env env, Napi::Function jsCallback)
+                {
                   jsCallback.Call({Napi::String::New(env, errorString)});
                 });
             isTsfnReleased = true;
@@ -178,22 +248,27 @@ NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info) {
 }
 
 Napi::Value
-NativeVideoStreamTrack::stopCapture(const Napi::CallbackInfo &info) {
+NativeVideoStreamTrack::stopCapture(const Napi::CallbackInfo &info)
+{
   Napi::Env env = info.Env();
 
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
                  ^{
-                   @autoreleasepool {
-                     if (session && [session isRunning]) {
+                   @autoreleasepool
+                   {
+                     if (session && [session isRunning])
+                     {
                        [session stopRunning];
 
                        // Remove all inputs
-                       for (AVCaptureInput *input in session.inputs) {
+                       for (AVCaptureInput *input in session.inputs)
+                       {
                          [session removeInput:input];
                        }
 
                        // Remove all outputs
-                       for (AVCaptureOutput *output in session.outputs) {
+                       for (AVCaptureOutput *output in session.outputs)
+                       {
                          [session removeOutput:output];
                        }
                      }
@@ -207,17 +282,40 @@ NativeVideoStreamTrack::stopCapture(const Napi::CallbackInfo &info) {
   return env.Undefined();
 }
 
-NativeVideoStreamTrack::~NativeVideoStreamTrack() {
-  if (session) {
+Napi::Value NativeVideoStreamTrack::getLabel(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+
+  return Napi::String::New(env, label);
+}
+
+Napi::Value NativeVideoStreamTrack::getId(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+
+  return Napi::String::New(env, id);
+}
+
+NativeVideoStreamTrack::~NativeVideoStreamTrack()
+{
+  if (session)
+  {
     [session stopRunning];
     [session release];
   }
 
-  if (delegate) {
+  if (delegate)
+  {
     [delegate release];
   }
 
-  if (!isTsfnReleased) {
+  if (!isTsfnReleased && tsfn)
+  {
     tsfn.Release();
+  }
+
+  if (device)
+  {
+    [device release];
   }
 }
