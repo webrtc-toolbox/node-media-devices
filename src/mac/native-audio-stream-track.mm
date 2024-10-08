@@ -200,8 +200,6 @@ NativeAudioStreamTrack::stopCapture(const Napi::CallbackInfo &info)
                        {
                          [session removeOutput:output];
                        }
-
-                       session = nil;
                      }
 
                      delegate.isTsfnReleased = YES;

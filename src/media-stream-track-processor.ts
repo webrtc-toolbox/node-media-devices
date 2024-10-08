@@ -26,9 +26,11 @@ export class MediaStreamTrackProcessor {
           controller.close();
         });
 
-        this.track.startCapture();
+        if (this.track.enabled) {
+          this.track.startCapture();
+        }
       },
-      cancel: () => {},
+      cancel: () => { },
     });
 
     return readable;

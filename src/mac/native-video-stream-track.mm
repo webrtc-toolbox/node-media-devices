@@ -176,7 +176,7 @@ NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info)
   {
     Napi::TypeError::New(env, "Expected one callback function")
         .ThrowAsJavaScriptException();
-    return env.Null();
+    return env.Undefined();
   }
 
   Napi::Function jsCallback = info[0].As<Napi::Function>();
@@ -190,8 +190,6 @@ NativeVideoStreamTrack::startCapture(const Napi::CallbackInfo &info)
         @autoreleasepool
         {
           [session setSessionPreset:AVCaptureSessionPresetHigh];
-
-          // label = std::string([[device localizedName] UTF8String]);
 
           NSError *error = nil;
           AVCaptureDeviceInput *input =
